@@ -5,7 +5,7 @@ var path = require('path');
 var babel = require('babel-core');
 var coffee = require('coffee-script');
 
-var tsPreprocessor = require('./ts-preprocessor');
+var tsPreprocessor = require('./typescript/preprocessor');
 var createCacheKeyFunction = require('fbjs-scripts/jest/createCacheKeyFunction');
 
 // Use require.resolve to be resilient to file moves, npm updates, etc
@@ -34,6 +34,8 @@ var babelOptions = {
     // into ReactART builds that include JSX.
     // TODO: I have not verified that this actually works.
     require.resolve('babel-plugin-transform-react-jsx-source'),
+
+    require.resolve('../babel/transform-prevent-infinite-loops'),
   ],
   retainLines: true,
 };

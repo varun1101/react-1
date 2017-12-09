@@ -60,8 +60,10 @@ import {
 } from './ReactFiberContext';
 import {NoWork, Never} from './ReactFiberExpirationTime';
 
+let warnedAboutStatelessRefs;
+
 if (__DEV__) {
-  var warnedAboutStatelessRefs = {};
+  warnedAboutStatelessRefs = {};
 }
 
 export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
@@ -142,13 +144,10 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
   }
 
   function updateFragment(current, workInProgress) {
-    var nextChildren = workInProgress.pendingProps;
+    const nextChildren = workInProgress.pendingProps;
     if (hasContextChanged()) {
       // Normally we can bail out on props equality but if context has changed
       // we don't do the bailout and we have to reuse existing props instead.
-      if (nextChildren === null) {
-        nextChildren = workInProgress.memoizedProps;
-      }
     } else if (
       nextChildren === null ||
       workInProgress.memoizedProps === nextChildren
@@ -169,28 +168,24 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
   }
 
   function updateFunctionalComponent(current, workInProgress) {
-    var fn = workInProgress.type;
-    var nextProps = workInProgress.pendingProps;
+    const fn = workInProgress.type;
+    const nextProps = workInProgress.pendingProps;
 
-    const memoizedProps = workInProgress.memoizedProps;
     if (hasContextChanged()) {
       // Normally we can bail out on props equality but if context has changed
       // we don't do the bailout and we have to reuse existing props instead.
-      if (nextProps === null) {
-        nextProps = memoizedProps;
-      }
     } else {
-      if (nextProps === null || memoizedProps === nextProps) {
+      if (workInProgress.memoizedProps === nextProps) {
         return bailoutOnAlreadyFinishedWork(current, workInProgress);
       }
       // TODO: consider bringing fn.shouldComponentUpdate() back.
       // It used to be here.
     }
 
-    var unmaskedContext = getUnmaskedContext(workInProgress);
-    var context = getMaskedContext(workInProgress, unmaskedContext);
+    const unmaskedContext = getUnmaskedContext(workInProgress);
+    const context = getMaskedContext(workInProgress, unmaskedContext);
 
-    var nextChildren;
+    let nextChildren;
 
     if (__DEV__) {
       ReactCurrentOwner.current = workInProgress;
@@ -223,6 +218,16 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
         // In the initial pass we might need to construct the instance.
         constructClassInstance(workInProgress, workInProgress.pendingProps);
         mountClassInstance(workInProgress, renderExpirationTime);
+
+        // Simulate an async bailout/interruption by invoking lifecycle twice.
+        // We do this here rather than inside of ReactFiberClassComponent,
+        // To more realistically simulate the interruption behavior of async,
+        // Which would never call componentWillMount() twice on the same instance.
+        if (debugRenderPhaseSideEffects) {
+          constructClassInstance(workInProgress, workInProgress.pendingProps);
+          mountClassInstance(workInProgress, renderExpirationTime);
+        }
+
         shouldUpdate = true;
       } else {
         invariant(false, 'Resuming work not yet implemented.');
@@ -380,21 +385,13 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
 
     const type = workInProgress.type;
     const memoizedProps = workInProgress.memoizedProps;
-    let nextProps = workInProgress.pendingProps;
-    if (nextProps === null) {
-      nextProps = memoizedProps;
-      invariant(
-        nextProps !== null,
-        'We should always have pending or current props. This error is ' +
-          'likely caused by a bug in React. Please file an issue.',
-      );
-    }
+    const nextProps = workInProgress.pendingProps;
     const prevProps = current !== null ? current.memoizedProps : null;
 
     if (hasContextChanged()) {
       // Normally we can bail out on props equality but if context has changed
       // we don't do the bailout and we have to reuse existing props instead.
-    } else if (nextProps === null || memoizedProps === nextProps) {
+    } else if (memoizedProps === nextProps) {
       return bailoutOnAlreadyFinishedWork(current, workInProgress);
     }
 
@@ -436,10 +433,7 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
     if (current === null) {
       tryToClaimNextHydratableInstance(workInProgress);
     }
-    let nextProps = workInProgress.pendingProps;
-    if (nextProps === null) {
-      nextProps = workInProgress.memoizedProps;
-    }
+    const nextProps = workInProgress.pendingProps;
     memoizeProps(workInProgress, nextProps);
     // Nothing to do here. This is terminal. We'll do the completion step
     // immediately after.
@@ -456,12 +450,12 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
       'An indeterminate component should never have mounted. This error is ' +
         'likely caused by a bug in React. Please file an issue.',
     );
-    var fn = workInProgress.type;
-    var props = workInProgress.pendingProps;
-    var unmaskedContext = getUnmaskedContext(workInProgress);
-    var context = getMaskedContext(workInProgress, unmaskedContext);
+    const fn = workInProgress.type;
+    const props = workInProgress.pendingProps;
+    const unmaskedContext = getUnmaskedContext(workInProgress);
+    const context = getMaskedContext(workInProgress, unmaskedContext);
 
-    var value;
+    let value;
 
     if (__DEV__) {
       if (fn.prototype && typeof fn.prototype.render === 'function') {
@@ -541,19 +535,11 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
   }
 
   function updateCallComponent(current, workInProgress, renderExpirationTime) {
-    var nextCall = (workInProgress.pendingProps: null | ReactCall);
+    let nextCall = (workInProgress.pendingProps: ReactCall);
     if (hasContextChanged()) {
       // Normally we can bail out on props equality but if context has changed
       // we don't do the bailout and we have to reuse existing props instead.
-      if (nextCall === null) {
-        nextCall = current && current.memoizedProps;
-        invariant(
-          nextCall !== null,
-          'We should always have pending or current props. This error is ' +
-            'likely caused by a bug in React. Please file an issue.',
-        );
-      }
-    } else if (nextCall === null || workInProgress.memoizedProps === nextCall) {
+    } else if (workInProgress.memoizedProps === nextCall) {
       nextCall = workInProgress.memoizedProps;
       // TODO: When bailing out, we might need to return the stateNode instead
       // of the child. To check it for work.
@@ -592,22 +578,11 @@ export default function<T, P, I, TI, HI, PI, C, CC, CX, PL>(
     renderExpirationTime,
   ) {
     pushHostContainer(workInProgress, workInProgress.stateNode.containerInfo);
-    let nextChildren = workInProgress.pendingProps;
+    const nextChildren = workInProgress.pendingProps;
     if (hasContextChanged()) {
       // Normally we can bail out on props equality but if context has changed
       // we don't do the bailout and we have to reuse existing props instead.
-      if (nextChildren === null) {
-        nextChildren = current && current.memoizedProps;
-        invariant(
-          nextChildren != null,
-          'We should always have pending or current props. This error is ' +
-            'likely caused by a bug in React. Please file an issue.',
-        );
-      }
-    } else if (
-      nextChildren === null ||
-      workInProgress.memoizedProps === nextChildren
-    ) {
+    } else if (workInProgress.memoizedProps === nextChildren) {
       return bailoutOnAlreadyFinishedWork(current, workInProgress);
     }
 

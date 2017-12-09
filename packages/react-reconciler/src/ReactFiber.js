@@ -35,16 +35,21 @@ import {
 import getComponentName from 'shared/getComponentName';
 
 import {NoWork} from './ReactFiberExpirationTime';
-import {NoContext} from './ReactTypeOfInternalContext';
+import {NoContext, AsyncUpdates} from './ReactTypeOfInternalContext';
+
+let hasBadMapPolyfill;
 
 if (__DEV__) {
-  var hasBadMapPolyfill = false;
+  hasBadMapPolyfill = false;
   try {
     const nonExtensibleObject = Object.preventExtensions({});
-    /* eslint-disable no-new */
-    new Map([[nonExtensibleObject, null]]);
-    new Set([nonExtensibleObject]);
-    /* eslint-enable no-new */
+    const testMap = new Map([[nonExtensibleObject, null]]);
+    const testSet = new Set([nonExtensibleObject]);
+    // This is necessary for Rollup to not consider these unused.
+    // https://github.com/rollup/rollup/issues/1771
+    // TODO: we can remove these if Rollup fixes the bug.
+    testMap.set(0, 0);
+    testSet.add(0);
   } catch (e) {
     // TODO: Consider warning about bad polyfills
     hasBadMapPolyfill = true;
@@ -146,12 +151,15 @@ export type Fiber = {|
   _debugIsCurrentlyTiming?: boolean,
 |};
 
+let debugCounter;
+
 if (__DEV__) {
-  var debugCounter = 1;
+  debugCounter = 1;
 }
 
 function FiberNode(
   tag: TypeOfWork,
+  pendingProps: mixed,
   key: null | string,
   internalContextTag: TypeOfInternalContext,
 ) {
@@ -169,7 +177,7 @@ function FiberNode(
 
   this.ref = null;
 
-  this.pendingProps = null;
+  this.pendingProps = pendingProps;
   this.memoizedProps = null;
   this.updateQueue = null;
   this.memoizedState = null;
@@ -211,13 +219,14 @@ function FiberNode(
 //    is faster.
 // 5) It should be easy to port this to a C struct and keep a C implementation
 //    compatible.
-var createFiber = function(
+const createFiber = function(
   tag: TypeOfWork,
+  pendingProps: mixed,
   key: null | string,
   internalContextTag: TypeOfInternalContext,
 ): Fiber {
   // $FlowFixMe: the shapes are exact here but Flow doesn't like constructors
-  return new FiberNode(tag, key, internalContextTag);
+  return new FiberNode(tag, pendingProps, key, internalContextTag);
 };
 
 function shouldConstruct(Component) {
@@ -239,6 +248,7 @@ export function createWorkInProgress(
     // reclaim the extra memory if needed.
     workInProgress = createFiber(
       current.tag,
+      pendingProps,
       current.key,
       current.internalContextTag,
     );
@@ -255,6 +265,8 @@ export function createWorkInProgress(
     workInProgress.alternate = current;
     current.alternate = workInProgress;
   } else {
+    workInProgress.pendingProps = pendingProps;
+
     // We already have an alternate.
     // Reset the effect tag.
     workInProgress.effectTag = NoEffect;
@@ -266,7 +278,6 @@ export function createWorkInProgress(
   }
 
   workInProgress.expirationTime = expirationTime;
-  workInProgress.pendingProps = pendingProps;
 
   workInProgress.child = current.child;
   workInProgress.memoizedProps = current.memoizedProps;
@@ -281,9 +292,9 @@ export function createWorkInProgress(
   return workInProgress;
 }
 
-export function createHostRootFiber(): Fiber {
-  const fiber = createFiber(HostRoot, null, NoContext);
-  return fiber;
+export function createHostRootFiber(isAsync): Fiber {
+  const internalContextTag = isAsync ? AsyncUpdates : NoContext;
+  return createFiber(HostRoot, null, null, internalContextTag);
 }
 
 export function createFiberFromElement(
@@ -297,17 +308,22 @@ export function createFiberFromElement(
   }
 
   let fiber;
-  const {type, key} = element;
+  const type = element.type;
+  const key = element.key;
+  const pendingProps = element.props;
   if (typeof type === 'function') {
     fiber = shouldConstruct(type)
-      ? createFiber(ClassComponent, key, internalContextTag)
-      : createFiber(IndeterminateComponent, key, internalContextTag);
+      ? createFiber(ClassComponent, pendingProps, key, internalContextTag)
+      : createFiber(
+          IndeterminateComponent,
+          pendingProps,
+          key,
+          internalContextTag,
+        );
     fiber.type = type;
-    fiber.pendingProps = element.props;
   } else if (typeof type === 'string') {
-    fiber = createFiber(HostComponent, key, internalContextTag);
+    fiber = createFiber(HostComponent, pendingProps, key, internalContextTag);
     fiber.type = type;
-    fiber.pendingProps = element.props;
   } else if (
     typeof type === 'object' &&
     type !== null &&
@@ -320,7 +336,7 @@ export function createFiberFromElement(
     // we don't know if we can reuse that fiber or if we need to clone it.
     // There is probably a clever way to restructure this.
     fiber = ((type: any): Fiber);
-    fiber.pendingProps = element.props;
+    fiber.pendingProps = pendingProps;
   } else {
     let info = '';
     if (__DEV__) {
@@ -364,8 +380,7 @@ export function createFiberFromFragment(
   expirationTime: ExpirationTime,
   key: null | string,
 ): Fiber {
-  const fiber = createFiber(Fragment, key, internalContextTag);
-  fiber.pendingProps = elements;
+  const fiber = createFiber(Fragment, elements, key, internalContextTag);
   fiber.expirationTime = expirationTime;
   return fiber;
 }
@@ -375,14 +390,13 @@ export function createFiberFromText(
   internalContextTag: TypeOfInternalContext,
   expirationTime: ExpirationTime,
 ): Fiber {
-  const fiber = createFiber(HostText, null, internalContextTag);
-  fiber.pendingProps = content;
+  const fiber = createFiber(HostText, content, null, internalContextTag);
   fiber.expirationTime = expirationTime;
   return fiber;
 }
 
 export function createFiberFromHostInstanceForDeletion(): Fiber {
-  const fiber = createFiber(HostComponent, null, NoContext);
+  const fiber = createFiber(HostComponent, null, null, NoContext);
   fiber.type = 'DELETED';
   return fiber;
 }
@@ -392,9 +406,8 @@ export function createFiberFromCall(
   internalContextTag: TypeOfInternalContext,
   expirationTime: ExpirationTime,
 ): Fiber {
-  const fiber = createFiber(CallComponent, call.key, internalContextTag);
+  const fiber = createFiber(CallComponent, call, call.key, internalContextTag);
   fiber.type = call.handler;
-  fiber.pendingProps = call;
   fiber.expirationTime = expirationTime;
   return fiber;
 }
@@ -404,7 +417,7 @@ export function createFiberFromReturn(
   internalContextTag: TypeOfInternalContext,
   expirationTime: ExpirationTime,
 ): Fiber {
-  const fiber = createFiber(ReturnComponent, null, internalContextTag);
+  const fiber = createFiber(ReturnComponent, null, null, internalContextTag);
   fiber.expirationTime = expirationTime;
   return fiber;
 }
@@ -414,8 +427,13 @@ export function createFiberFromPortal(
   internalContextTag: TypeOfInternalContext,
   expirationTime: ExpirationTime,
 ): Fiber {
-  const fiber = createFiber(HostPortal, portal.key, internalContextTag);
-  fiber.pendingProps = portal.children || [];
+  const pendingProps = portal.children !== null ? portal.children : [];
+  const fiber = createFiber(
+    HostPortal,
+    pendingProps,
+    portal.key,
+    internalContextTag,
+  );
   fiber.expirationTime = expirationTime;
   fiber.stateNode = {
     containerInfo: portal.containerInfo,

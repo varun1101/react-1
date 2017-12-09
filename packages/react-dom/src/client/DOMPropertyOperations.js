@@ -6,39 +6,12 @@
  */
 
 import {
-  ATTRIBUTE_NAME_CHAR,
-  ATTRIBUTE_NAME_START_CHAR,
   ID_ATTRIBUTE_NAME,
   ROOT_ATTRIBUTE_NAME,
   getPropertyInfo,
   shouldSetAttribute,
+  isAttributeNameSafe,
 } from '../shared/DOMProperty';
-import warning from 'fbjs/lib/warning';
-
-// isAttributeNameSafe() is currently duplicated in DOMMarkupOperations.
-// TODO: Find a better place for this.
-var VALID_ATTRIBUTE_NAME_REGEX = new RegExp(
-  '^[' + ATTRIBUTE_NAME_START_CHAR + '][' + ATTRIBUTE_NAME_CHAR + ']*$',
-);
-var illegalAttributeNameCache = {};
-var validatedAttributeNameCache = {};
-function isAttributeNameSafe(attributeName) {
-  if (validatedAttributeNameCache.hasOwnProperty(attributeName)) {
-    return true;
-  }
-  if (illegalAttributeNameCache.hasOwnProperty(attributeName)) {
-    return false;
-  }
-  if (VALID_ATTRIBUTE_NAME_REGEX.test(attributeName)) {
-    validatedAttributeNameCache[attributeName] = true;
-    return true;
-  }
-  illegalAttributeNameCache[attributeName] = true;
-  if (__DEV__) {
-    warning(false, 'Invalid attribute name: `%s`', attributeName);
-  }
-  return false;
-}
 
 // shouldIgnoreValue() is currently duplicated in DOMMarkupOperations.
 // TODO: Find a better place for this.
@@ -71,19 +44,18 @@ export function setAttributeForRoot(node) {
  */
 export function getValueForProperty(node, name, expected) {
   if (__DEV__) {
-    var propertyInfo = getPropertyInfo(name);
+    const propertyInfo = getPropertyInfo(name);
     if (propertyInfo) {
-      var mutationMethod = propertyInfo.mutationMethod;
-      if (mutationMethod || propertyInfo.mustUseProperty) {
+      if (propertyInfo.mustUseProperty) {
         return node[propertyInfo.propertyName];
       } else {
-        var attributeName = propertyInfo.attributeName;
+        const attributeName = propertyInfo.attributeName;
 
-        var stringValue = null;
+        let stringValue = null;
 
         if (propertyInfo.hasOverloadedBooleanValue) {
           if (node.hasAttribute(attributeName)) {
-            var value = node.getAttribute(attributeName);
+            const value = node.getAttribute(attributeName);
             if (value === '') {
               return true;
             }
@@ -138,7 +110,7 @@ export function getValueForAttribute(node, name, expected) {
     if (!node.hasAttribute(name)) {
       return expected === undefined ? undefined : null;
     }
-    var value = node.getAttribute(name);
+    const value = node.getAttribute(name);
     if (value === '' + expected) {
       return expected;
     }
@@ -154,13 +126,10 @@ export function getValueForAttribute(node, name, expected) {
  * @param {*} value
  */
 export function setValueForProperty(node, name, value) {
-  var propertyInfo = getPropertyInfo(name);
+  const propertyInfo = getPropertyInfo(name);
 
   if (propertyInfo && shouldSetAttribute(name, value)) {
-    var mutationMethod = propertyInfo.mutationMethod;
-    if (mutationMethod) {
-      mutationMethod(node, value);
-    } else if (shouldIgnoreValue(propertyInfo, value)) {
+    if (shouldIgnoreValue(propertyInfo, value)) {
       deleteValueForProperty(node, name);
       return;
     } else if (propertyInfo.mustUseProperty) {
@@ -168,8 +137,8 @@ export function setValueForProperty(node, name, value) {
       // `toString`ed by IE8/9.
       node[propertyInfo.propertyName] = value;
     } else {
-      var attributeName = propertyInfo.attributeName;
-      var namespace = propertyInfo.attributeNamespace;
+      const attributeName = propertyInfo.attributeName;
+      const namespace = propertyInfo.attributeNamespace;
       // `setAttribute` with objects becomes only `[object]` in IE8/9,
       // ('' + value) makes it output the correct toString()-value.
       if (namespace) {
@@ -191,11 +160,6 @@ export function setValueForProperty(node, name, value) {
     );
     return;
   }
-
-  if (__DEV__) {
-    var payload = {};
-    payload[name] = value;
-  }
 }
 
 export function setValueForAttribute(node, name, value) {
@@ -206,11 +170,6 @@ export function setValueForAttribute(node, name, value) {
     node.removeAttribute(name);
   } else {
     node.setAttribute(name, '' + value);
-  }
-
-  if (__DEV__) {
-    var payload = {};
-    payload[name] = value;
   }
 }
 
@@ -231,13 +190,10 @@ export function deleteValueForAttribute(node, name) {
  * @param {string} name
  */
 export function deleteValueForProperty(node, name) {
-  var propertyInfo = getPropertyInfo(name);
+  const propertyInfo = getPropertyInfo(name);
   if (propertyInfo) {
-    var mutationMethod = propertyInfo.mutationMethod;
-    if (mutationMethod) {
-      mutationMethod(node, undefined);
-    } else if (propertyInfo.mustUseProperty) {
-      var propName = propertyInfo.propertyName;
+    if (propertyInfo.mustUseProperty) {
+      const propName = propertyInfo.propertyName;
       if (propertyInfo.hasBooleanValue) {
         node[propName] = false;
       } else {

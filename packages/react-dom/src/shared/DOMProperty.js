@@ -5,13 +5,16 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import invariant from 'fbjs/lib/invariant';
+import warning from 'fbjs/lib/warning';
 
 // These attributes should be all lowercase to allow for
 // case insensitive checks
-var RESERVED_PROPS = {
+const RESERVED_PROPS = {
   children: true,
   dangerouslySetInnerHTML: true,
+  // TODO: This prevents the assignment of defaultValue to regular
+  // elements (not just inputs). Now that ReactDOMInput assigns to the
+  // defaultValue property -- do we need this?
   defaultValue: true,
   defaultChecked: true,
   innerHTML: true,
@@ -24,50 +27,21 @@ function checkMask(value, bitmask) {
   return (value & bitmask) === bitmask;
 }
 
-var DOMPropertyInjection = {
-  /**
-   * Mapping from normalized, camelcased property names to a configuration that
-   * specifies how the associated DOM property should be accessed or rendered.
-   */
-  MUST_USE_PROPERTY: 0x1,
-  HAS_BOOLEAN_VALUE: 0x4,
-  HAS_NUMERIC_VALUE: 0x8,
-  HAS_POSITIVE_NUMERIC_VALUE: 0x10 | 0x8,
-  HAS_OVERLOADED_BOOLEAN_VALUE: 0x20,
-  HAS_STRING_BOOLEAN_VALUE: 0x40,
+const MUST_USE_PROPERTY = 0x1;
+const HAS_BOOLEAN_VALUE = 0x4;
+const HAS_NUMERIC_VALUE = 0x8;
+const HAS_POSITIVE_NUMERIC_VALUE = 0x10 | 0x8;
+const HAS_OVERLOADED_BOOLEAN_VALUE = 0x20;
+const HAS_STRING_BOOLEAN_VALUE = 0x40;
 
-  /**
-   * Inject some specialized knowledge about the DOM. This takes a config object
-   * with the following properties:
-   *
-   * Properties: object mapping DOM property name to one of the
-   * DOMPropertyInjection constants or null. If your attribute isn't in here,
-   * it won't get written to the DOM.
-   *
-   * DOMAttributeNames: object mapping React attribute name to the DOM
-   * attribute name. Attribute names not specified use the **lowercase**
-   * normalized name.
-   *
-   * DOMAttributeNamespaces: object mapping React attribute name to the DOM
-   * attribute namespace URL. (Attribute names not specified use no namespace.)
-   *
-   * DOMPropertyNames: similar to DOMAttributeNames but for DOM properties.
-   * Property names not specified use the normalized name.
-   *
-   * DOMMutationMethods: Properties that require special mutation methods. If
-   * `value` is undefined, the mutation method should unset the property.
-   *
-   * @param {object} domPropertyConfig the config as described above.
-   */
-  injectDOMPropertyConfig: function(domPropertyConfig) {
-    var Injection = DOMPropertyInjection;
-    var Properties = domPropertyConfig.Properties || {};
-    var DOMAttributeNamespaces = domPropertyConfig.DOMAttributeNamespaces || {};
-    var DOMAttributeNames = domPropertyConfig.DOMAttributeNames || {};
-    var DOMMutationMethods = domPropertyConfig.DOMMutationMethods || {};
+function injectDOMPropertyConfig(domPropertyConfig) {
+  const Properties = domPropertyConfig.Properties || {};
+  const DOMAttributeNamespaces = domPropertyConfig.DOMAttributeNamespaces || {};
+  const DOMAttributeNames = domPropertyConfig.DOMAttributeNames || {};
 
-    for (var propName in Properties) {
-      invariant(
+  for (const propName in Properties) {
+    if (__DEV__) {
+      warning(
         !properties.hasOwnProperty(propName),
         "injectDOMPropertyConfig(...): You're trying to inject DOM property " +
           "'%s' which has already been injected. You may be accidentally " +
@@ -75,33 +49,31 @@ var DOMPropertyInjection = {
           'injecting two configs that have conflicting property names.',
         propName,
       );
+    }
 
-      var lowerCased = propName.toLowerCase();
-      var propConfig = Properties[propName];
+    const lowerCased = propName.toLowerCase();
+    const propConfig = Properties[propName];
 
-      var propertyInfo = {
-        attributeName: lowerCased,
-        attributeNamespace: null,
-        propertyName: propName,
-        mutationMethod: null,
+    const propertyInfo = {
+      attributeName: lowerCased,
+      attributeNamespace: null,
+      propertyName: propName,
 
-        mustUseProperty: checkMask(propConfig, Injection.MUST_USE_PROPERTY),
-        hasBooleanValue: checkMask(propConfig, Injection.HAS_BOOLEAN_VALUE),
-        hasNumericValue: checkMask(propConfig, Injection.HAS_NUMERIC_VALUE),
-        hasPositiveNumericValue: checkMask(
-          propConfig,
-          Injection.HAS_POSITIVE_NUMERIC_VALUE,
-        ),
-        hasOverloadedBooleanValue: checkMask(
-          propConfig,
-          Injection.HAS_OVERLOADED_BOOLEAN_VALUE,
-        ),
-        hasStringBooleanValue: checkMask(
-          propConfig,
-          Injection.HAS_STRING_BOOLEAN_VALUE,
-        ),
-      };
-      invariant(
+      mustUseProperty: checkMask(propConfig, MUST_USE_PROPERTY),
+      hasBooleanValue: checkMask(propConfig, HAS_BOOLEAN_VALUE),
+      hasNumericValue: checkMask(propConfig, HAS_NUMERIC_VALUE),
+      hasPositiveNumericValue: checkMask(
+        propConfig,
+        HAS_POSITIVE_NUMERIC_VALUE,
+      ),
+      hasOverloadedBooleanValue: checkMask(
+        propConfig,
+        HAS_OVERLOADED_BOOLEAN_VALUE,
+      ),
+      hasStringBooleanValue: checkMask(propConfig, HAS_STRING_BOOLEAN_VALUE),
+    };
+    if (__DEV__) {
+      warning(
         propertyInfo.hasBooleanValue +
           propertyInfo.hasNumericValue +
           propertyInfo.hasOverloadedBooleanValue <=
@@ -110,29 +82,25 @@ var DOMPropertyInjection = {
           'numeric value, but not a combination: %s',
         propName,
       );
-
-      if (DOMAttributeNames.hasOwnProperty(propName)) {
-        var attributeName = DOMAttributeNames[propName];
-
-        propertyInfo.attributeName = attributeName;
-      }
-
-      if (DOMAttributeNamespaces.hasOwnProperty(propName)) {
-        propertyInfo.attributeNamespace = DOMAttributeNamespaces[propName];
-      }
-
-      if (DOMMutationMethods.hasOwnProperty(propName)) {
-        propertyInfo.mutationMethod = DOMMutationMethods[propName];
-      }
-
-      // Downcase references to whitelist properties to check for membership
-      // without case-sensitivity. This allows the whitelist to pick up
-      // `allowfullscreen`, which should be written using the property configuration
-      // for `allowFullscreen`
-      properties[propName] = propertyInfo;
     }
-  },
-};
+
+    if (DOMAttributeNames.hasOwnProperty(propName)) {
+      const attributeName = DOMAttributeNames[propName];
+
+      propertyInfo.attributeName = attributeName;
+    }
+
+    if (DOMAttributeNamespaces.hasOwnProperty(propName)) {
+      propertyInfo.attributeNamespace = DOMAttributeNamespaces[propName];
+    }
+
+    // Downcase references to whitelist properties to check for membership
+    // without case-sensitivity. This allows the whitelist to pick up
+    // `allowfullscreen`, which should be written using the property configuration
+    // for `allowFullscreen`
+    properties[propName] = propertyInfo;
+  }
+}
 
 /* eslint-disable max-len */
 export const ATTRIBUTE_NAME_START_CHAR =
@@ -143,6 +111,30 @@ export const ATTRIBUTE_NAME_CHAR =
 
 export const ID_ATTRIBUTE_NAME = 'data-reactid';
 export const ROOT_ATTRIBUTE_NAME = 'data-reactroot';
+export const VALID_ATTRIBUTE_NAME_REGEX = new RegExp(
+  '^[' + ATTRIBUTE_NAME_START_CHAR + '][' + ATTRIBUTE_NAME_CHAR + ']*$',
+);
+
+const illegalAttributeNameCache = {};
+const validatedAttributeNameCache = {};
+
+export function isAttributeNameSafe(attributeName) {
+  if (validatedAttributeNameCache.hasOwnProperty(attributeName)) {
+    return true;
+  }
+  if (illegalAttributeNameCache.hasOwnProperty(attributeName)) {
+    return false;
+  }
+  if (VALID_ATTRIBUTE_NAME_REGEX.test(attributeName)) {
+    validatedAttributeNameCache[attributeName] = true;
+    return true;
+  }
+  illegalAttributeNameCache[attributeName] = true;
+  if (__DEV__) {
+    warning(false, 'Invalid attribute name: `%s`', attributeName);
+  }
+  return false;
+}
 
 /**
  * Map from property "standard name" to an object with info about how to set
@@ -154,9 +146,6 @@ export const ROOT_ATTRIBUTE_NAME = 'data-reactroot';
  * propertyName:
  *   Used on DOM node instances. (This includes properties that mutate due to
  *   external factors.)
- * mutationMethod:
- *   If non-null, used instead of the property or `setAttribute()` after
- *   initial render.
  * mustUseProperty:
  *   Whether the property must be accessed and mutated as an object property.
  * hasBooleanValue:
@@ -222,7 +211,7 @@ export function shouldAttributeAcceptBooleanValue(name) {
       propertyInfo.hasOverloadedBooleanValue
     );
   }
-  var prefix = name.toLowerCase().slice(0, 5);
+  const prefix = name.toLowerCase().slice(0, 5);
   return prefix === 'data-' || prefix === 'aria-';
 }
 
@@ -239,4 +228,214 @@ export function isReservedProp(name) {
   return RESERVED_PROPS.hasOwnProperty(name);
 }
 
-export const injection = DOMPropertyInjection;
+const HTMLDOMPropertyConfig = {
+  // When adding attributes to this list, be sure to also add them to
+  // the `possibleStandardNames` module to ensure casing and incorrect
+  // name warnings.
+  Properties: {
+    allowFullScreen: HAS_BOOLEAN_VALUE,
+    // specifies target context for links with `preload` type
+    async: HAS_BOOLEAN_VALUE,
+    // Note: there is a special case that prevents it from being written to the DOM
+    // on the client side because the browsers are inconsistent. Instead we call focus().
+    autoFocus: HAS_BOOLEAN_VALUE,
+    autoPlay: HAS_BOOLEAN_VALUE,
+    capture: HAS_OVERLOADED_BOOLEAN_VALUE,
+    checked: MUST_USE_PROPERTY | HAS_BOOLEAN_VALUE,
+    cols: HAS_POSITIVE_NUMERIC_VALUE,
+    contentEditable: HAS_STRING_BOOLEAN_VALUE,
+    controls: HAS_BOOLEAN_VALUE,
+    default: HAS_BOOLEAN_VALUE,
+    defer: HAS_BOOLEAN_VALUE,
+    disabled: HAS_BOOLEAN_VALUE,
+    download: HAS_OVERLOADED_BOOLEAN_VALUE,
+    draggable: HAS_STRING_BOOLEAN_VALUE,
+    formNoValidate: HAS_BOOLEAN_VALUE,
+    hidden: HAS_BOOLEAN_VALUE,
+    loop: HAS_BOOLEAN_VALUE,
+    // Caution; `option.selected` is not updated if `select.multiple` is
+    // disabled with `removeAttribute`.
+    multiple: MUST_USE_PROPERTY | HAS_BOOLEAN_VALUE,
+    muted: MUST_USE_PROPERTY | HAS_BOOLEAN_VALUE,
+    noValidate: HAS_BOOLEAN_VALUE,
+    open: HAS_BOOLEAN_VALUE,
+    playsInline: HAS_BOOLEAN_VALUE,
+    readOnly: HAS_BOOLEAN_VALUE,
+    required: HAS_BOOLEAN_VALUE,
+    reversed: HAS_BOOLEAN_VALUE,
+    rows: HAS_POSITIVE_NUMERIC_VALUE,
+    rowSpan: HAS_NUMERIC_VALUE,
+    scoped: HAS_BOOLEAN_VALUE,
+    seamless: HAS_BOOLEAN_VALUE,
+    selected: MUST_USE_PROPERTY | HAS_BOOLEAN_VALUE,
+    size: HAS_POSITIVE_NUMERIC_VALUE,
+    start: HAS_NUMERIC_VALUE,
+    // support for projecting regular DOM Elements via V1 named slots ( shadow dom )
+    span: HAS_POSITIVE_NUMERIC_VALUE,
+    spellCheck: HAS_STRING_BOOLEAN_VALUE,
+    // Style must be explicitly set in the attribute list. React components
+    // expect a style object
+    style: 0,
+    // Keep it in the whitelist because it is case-sensitive for SVG.
+    tabIndex: 0,
+    // itemScope is for for Microdata support.
+    // See http://schema.org/docs/gs.html
+    itemScope: HAS_BOOLEAN_VALUE,
+    // These attributes must stay in the white-list because they have
+    // different attribute names (see DOMAttributeNames below)
+    acceptCharset: 0,
+    className: 0,
+    htmlFor: 0,
+    httpEquiv: 0,
+    // Set the string boolean flag to allow the behavior
+    value: HAS_STRING_BOOLEAN_VALUE,
+  },
+  DOMAttributeNames: {
+    acceptCharset: 'accept-charset',
+    className: 'class',
+    htmlFor: 'for',
+    httpEquiv: 'http-equiv',
+  },
+};
+
+const NS = {
+  xlink: 'http://www.w3.org/1999/xlink',
+  xml: 'http://www.w3.org/XML/1998/namespace',
+};
+
+/**
+ * This is a list of all SVG attributes that need special casing,
+ * namespacing, or boolean value assignment.
+ *
+ * When adding attributes to this list, be sure to also add them to
+ * the `possibleStandardNames` module to ensure casing and incorrect
+ * name warnings.
+ *
+ * SVG Attributes List:
+ * https://www.w3.org/TR/SVG/attindex.html
+ * SMIL Spec:
+ * https://www.w3.org/TR/smil
+ */
+const SVG_ATTRS = [
+  'accent-height',
+  'alignment-baseline',
+  'arabic-form',
+  'baseline-shift',
+  'cap-height',
+  'clip-path',
+  'clip-rule',
+  'color-interpolation',
+  'color-interpolation-filters',
+  'color-profile',
+  'color-rendering',
+  'dominant-baseline',
+  'enable-background',
+  'fill-opacity',
+  'fill-rule',
+  'flood-color',
+  'flood-opacity',
+  'font-family',
+  'font-size',
+  'font-size-adjust',
+  'font-stretch',
+  'font-style',
+  'font-variant',
+  'font-weight',
+  'glyph-name',
+  'glyph-orientation-horizontal',
+  'glyph-orientation-vertical',
+  'horiz-adv-x',
+  'horiz-origin-x',
+  'image-rendering',
+  'letter-spacing',
+  'lighting-color',
+  'marker-end',
+  'marker-mid',
+  'marker-start',
+  'overline-position',
+  'overline-thickness',
+  'paint-order',
+  'panose-1',
+  'pointer-events',
+  'rendering-intent',
+  'shape-rendering',
+  'stop-color',
+  'stop-opacity',
+  'strikethrough-position',
+  'strikethrough-thickness',
+  'stroke-dasharray',
+  'stroke-dashoffset',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-opacity',
+  'stroke-width',
+  'text-anchor',
+  'text-decoration',
+  'text-rendering',
+  'underline-position',
+  'underline-thickness',
+  'unicode-bidi',
+  'unicode-range',
+  'units-per-em',
+  'v-alphabetic',
+  'v-hanging',
+  'v-ideographic',
+  'v-mathematical',
+  'vector-effect',
+  'vert-adv-y',
+  'vert-origin-x',
+  'vert-origin-y',
+  'word-spacing',
+  'writing-mode',
+  'x-height',
+  'xlink:actuate',
+  'xlink:arcrole',
+  'xlink:href',
+  'xlink:role',
+  'xlink:show',
+  'xlink:title',
+  'xlink:type',
+  'xml:base',
+  'xmlns:xlink',
+  'xml:lang',
+  'xml:space',
+];
+
+const SVGDOMPropertyConfig = {
+  Properties: {
+    autoReverse: HAS_STRING_BOOLEAN_VALUE,
+    externalResourcesRequired: HAS_STRING_BOOLEAN_VALUE,
+    preserveAlpha: HAS_STRING_BOOLEAN_VALUE,
+  },
+  DOMAttributeNames: {
+    autoReverse: 'autoReverse',
+    externalResourcesRequired: 'externalResourcesRequired',
+    preserveAlpha: 'preserveAlpha',
+  },
+  DOMAttributeNamespaces: {
+    xlinkActuate: NS.xlink,
+    xlinkArcrole: NS.xlink,
+    xlinkHref: NS.xlink,
+    xlinkRole: NS.xlink,
+    xlinkShow: NS.xlink,
+    xlinkTitle: NS.xlink,
+    xlinkType: NS.xlink,
+    xmlBase: NS.xml,
+    xmlLang: NS.xml,
+    xmlSpace: NS.xml,
+  },
+};
+
+const CAMELIZE = /[\-\:]([a-z])/g;
+const capitalize = token => token[1].toUpperCase();
+
+SVG_ATTRS.forEach(original => {
+  const reactName = original.replace(CAMELIZE, capitalize);
+
+  SVGDOMPropertyConfig.Properties[reactName] = 0;
+  SVGDOMPropertyConfig.DOMAttributeNames[reactName] = original;
+});
+
+injectDOMPropertyConfig(HTMLDOMPropertyConfig);
+injectDOMPropertyConfig(SVGDOMPropertyConfig);

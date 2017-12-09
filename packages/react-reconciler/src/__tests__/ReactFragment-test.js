@@ -15,9 +15,6 @@ describe('ReactFragment', () => {
   beforeEach(function() {
     jest.resetModules();
 
-    const ReactFeatureFlags = require('shared/ReactFeatureFlags');
-    ReactFeatureFlags.enableReactFragment = true;
-
     React = require('react');
     ReactNoop = require('react-noop-renderer');
   });
@@ -84,7 +81,7 @@ describe('ReactFragment', () => {
   });
 
   it('should preserve state of children with 1 level nesting', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -124,7 +121,7 @@ describe('ReactFragment', () => {
   });
 
   it('should preserve state between top-level fragments', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -165,7 +162,7 @@ describe('ReactFragment', () => {
   });
 
   it('should preserve state of children nested at same level', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -215,7 +212,7 @@ describe('ReactFragment', () => {
   });
 
   it('should not preserve state in non-top-level fragment nesting', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -258,7 +255,7 @@ describe('ReactFragment', () => {
   });
 
   it('should not preserve state of children if nested 2 levels without siblings', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -299,7 +296,7 @@ describe('ReactFragment', () => {
   });
 
   it('should not preserve state of children if nested 2 levels with siblings', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -341,7 +338,7 @@ describe('ReactFragment', () => {
   });
 
   it('should preserve state between array nested in fragment and fragment', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -380,7 +377,7 @@ describe('ReactFragment', () => {
   });
 
   it('should preserve state between top level fragment and array', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -419,7 +416,7 @@ describe('ReactFragment', () => {
   });
 
   it('should not preserve state between array nested in fragment and double nested fragment', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -460,7 +457,7 @@ describe('ReactFragment', () => {
   });
 
   it('should not preserve state between array nested in fragment and double nested array', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -497,7 +494,7 @@ describe('ReactFragment', () => {
   });
 
   it('should preserve state between double nested fragment and double nested array', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -538,7 +535,7 @@ describe('ReactFragment', () => {
   });
 
   it('should not preserve state of children when the keys are different', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -580,7 +577,7 @@ describe('ReactFragment', () => {
   });
 
   it('should not preserve state between unkeyed and keyed fragment', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -621,7 +618,7 @@ describe('ReactFragment', () => {
   });
 
   it('should preserve state with reordering in multiple levels', function() {
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -675,7 +672,7 @@ describe('ReactFragment', () => {
 
   it('should not preserve state when switching to a keyed fragment to an array', function() {
     spyOnDev(console, 'error');
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
@@ -729,7 +726,7 @@ describe('ReactFragment', () => {
 
   it('should preserve state when it does not change positions', function() {
     spyOnDev(console, 'error');
-    var ops = [];
+    const ops = [];
 
     class Stateful extends React.Component {
       componentDidUpdate() {
